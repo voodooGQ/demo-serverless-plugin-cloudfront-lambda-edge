@@ -1,0 +1,67 @@
+service: demo-sls-cf-lambda-edge
+
+plugins:
+- serverless-webpack
+- '@silvermine/serverless-plugin-cloudfront-lambda-edge'
+
+provider:
+  name: aws
+  runtime: nodejs10.x
+  region: us-east-1
+  memorySize: 128
+  timeout: 5
+package:
+  individually: true
+
+custom:
+  webpack:
+    excludeFiles:
+      - "src/**/*.test.ts"
+      - "src/**/__mocks__/*.ts"
+    includeModules:
+      forceExclude:
+        - aws-sdk
+
+functions:
+  googleForwarder:
+    handler: src/googleForwarder.handler
+    lambdaAtEdge:
+      distribution: CloudFrontDistribution
+      eventType: 'viewer-request'
+      # Path pattern with a ref
+      pathPattern: !Ref ExamplePath
+
+resources:
+
+  Parameters:
+    # This is the parameter we'll be referencing
+    ExamplePath:
+      Type: String
+      Description: An example path to use with the CF Distribution
+      Default: '/examplepath'
+
+  Resources:
+    CloudFrontDistribution:
+      Type: AWS::CloudFront::Distribution
+      Properties:
+        DistributionConfig:
+          Enabled: true
+          CacheBehaviors:
+            # Corresponding Cache Behavior as Ref
+            - PathPattern: !Ref ExamplePath
+              Compress: true
+              ForwardedValues:
+                QueryString: true
+              TargetOriginId: dummy-origin
+              ViewerProtocolPolicy: redirect-to-https
+          DefaultCacheBehavior:
+            Compress: true
+            ForwardedValues:
+              QueryString: true
+            TargetOriginId: dummy-origin
+            ViewerProtocolPolicy: redirect-to-https
+          Origins:
+            - DomainName: example.org
+              Id: dummy-origin
+              CustomOriginConfig:
+                OriginProtocolPolicy: match-viewer
